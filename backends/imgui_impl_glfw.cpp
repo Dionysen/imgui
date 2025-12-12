@@ -189,8 +189,7 @@
 #define GLFW_HAS_NEW_CURSORS            (0)
 #endif
 #ifdef GLFW_MOUSE_PASSTHROUGH           // Let's be nice to people who pulled GLFW between 2019-04-16 (3.4 define) and 2020-07-17 (passthrough)
-// #define GLFW_HAS_MOUSE_PASSTHROUGH      (GLFW_VERSION_COMBINED >= 3400) // 3.4+ 
-#define GLFW_HAS_MOUSE_PASSTHROUGH      (0) // 3.4+ GLFW_MOUSE_PASSTHROUGH
+#define GLFW_HAS_MOUSE_PASSTHROUGH      (GLFW_VERSION_COMBINED >= 3400) // 3.4+ 
 #else
 #define GLFW_HAS_MOUSE_PASSTHROUGH      (0)
 #endif
@@ -198,6 +197,8 @@
 #define GLFW_HAS_GETKEYNAME             (GLFW_VERSION_COMBINED >= 3200) // 3.2+ glfwGetKeyName()
 #define GLFW_HAS_GETERROR               (GLFW_VERSION_COMBINED >= 3300) // 3.3+ glfwGetError()
 #define GLFW_HAS_GETPLATFORM            (GLFW_VERSION_COMBINED >= 3400) // 3.4+ glfwGetPlatform()
+
+static bool s_EnableMousePassthrough = true;
 
 // Map GLFWWindow* to ImGuiContext*.
 // - Would be simpler if we could use glfwSetWindowUserPointer()/glfwGetWindowUserPointer(), but this is a single and shared resource.
@@ -711,7 +712,7 @@ static bool ImGui_ImplGlfw_Init(GLFWwindow* window, bool install_callbacks, Glfw
     if (has_viewports)
         io.BackendFlags |= ImGuiBackendFlags_PlatformHasViewports;  // We can create multi-viewports on the Platform side (optional)
 #endif
-#if GLFW_HAS_MOUSE_PASSTHROUGH || GLFW_HAS_WINDOW_HOVERED
+#if (GLFW_HAS_MOUSE_PASSTHROUGH && s_EnableMousePassthrough) || GLFW_HAS_WINDOW_HOVERED
     io.BackendFlags |= ImGuiBackendFlags_HasMouseHoveredViewport; // We can call io.AddMouseViewportEvent() with correct data (optional)
 #endif
 
@@ -919,11 +920,11 @@ static void ImGui_ImplGlfw_UpdateMouseData()
         // - [X] GLFW backend correctly reports this regardless of another viewport behind focused and dragged from (we need this to find a useful drag and drop target).
         // FIXME: This is currently only correct on Win32. See what we do below with the WM_NCHITTEST, missing an equivalent for other systems.
         // See https://github.com/glfw/glfw/issues/1236 if you want to help in making this a GLFW feature.
-#if GLFW_HAS_MOUSE_PASSTHROUGH
+#if GLFW_HAS_MOUSE_PASSTHROUGH && s_EnableMousePassthrough
         const bool window_no_input = (viewport->Flags & ImGuiViewportFlags_NoInputs) != 0;
         glfwSetWindowAttrib(window, GLFW_MOUSE_PASSTHROUGH, window_no_input);
 #endif
-#if GLFW_HAS_MOUSE_PASSTHROUGH || GLFW_HAS_WINDOW_HOVERED
+#if (GLFW_HAS_MOUSE_PASSTHROUGH && s_EnableMousePassthrough) || GLFW_HAS_WINDOW_HOVERED
         if (glfwGetWindowAttrib(window, GLFW_HOVERED))
             mouse_viewport_id = viewport->ID;
 #else
@@ -1098,6 +1099,11 @@ float ImGui_ImplGlfw_GetContentScaleForMonitor(GLFWmonitor* monitor)
     IM_UNUSED(monitor);
     return 1.0f;
 #endif
+}
+
+IMGUI_IMPL_API void ImGui_ImplGlfw_SetMousePassthrough(bool enable)
+{
+    s_EnableMousePassthrough = enable;
 }
 
 static void ImGui_ImplGlfw_GetWindowSizeAndFramebufferScale(GLFWwindow* window, ImVec2* out_size, ImVec2* out_framebuffer_scale)
@@ -1358,7 +1364,7 @@ static void ImGui_ImplGlfw_DestroyWindow(ImGuiViewport* viewport)
     {
         if (vd->WindowOwned)
         {
-#if !GLFW_HAS_MOUSE_PASSTHROUGH && GLFW_HAS_WINDOW_HOVERED && defined(_WIN32)
+#if !GLFW_HAS_MOUSE_PASSTHROUGH && GLFW_HAS_WINDOW_HOVERED && defined(_WIN32) && !s_EnableMousePassthrough
             HWND hwnd = (HWND)viewport->PlatformHandleRaw;
             ::RemovePropA(hwnd, "IMGUI_VIEWPORT");
 #endif
@@ -1627,7 +1633,7 @@ static LRESULT CALLBACK ImGui_ImplGlfw_WndProc(HWND hWnd, UINT msg, WPARAM wPara
 
         // We have submitted https://github.com/glfw/glfw/pull/1568 to allow GLFW to support "transparent inputs".
         // In the meanwhile we implement custom per-platform workarounds here (FIXME-VIEWPORT: Implement same work-around for Linux/OSX!)
-#if !GLFW_HAS_MOUSE_PASSTHROUGH && GLFW_HAS_WINDOW_HOVERED
+#if !GLFW_HAS_MOUSE_PASSTHROUGH && GLFW_HAS_WINDOW_HOVERED && !s_EnableMousePassthrough
     case WM_NCHITTEST:
     {
         // Let mouse pass-through the window. This will allow the backend to call io.AddMouseViewportEvent() properly (which is OPTIONAL).
