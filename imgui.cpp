@@ -19052,11 +19052,8 @@ static void ImGui::DockNodeUpdate(ImGuiDockNode* node)
     if (node->IsRootNode() && host_window)
     {
         DockNodeTreeUpdatePosSize(node, host_window->Pos, host_window->Size);
-        PushStyleColor(ImGuiCol_Separator, g.Style.Colors[ImGuiCol_Border]);
-        PushStyleColor(ImGuiCol_SeparatorActive, g.Style.Colors[ImGuiCol_ResizeGripActive]);
-        PushStyleColor(ImGuiCol_SeparatorHovered, g.Style.Colors[ImGuiCol_ResizeGripHovered]);
+        // Use ImGuiCol_Separator* for docking splitters (do not remap to Border/ResizeGrip).
         DockNodeTreeUpdateSplitter(node);
-        PopStyleColor(3);
     }
 
     // Draw empty node background (currently can only be the Central Node)
